@@ -22,13 +22,13 @@ class RegressionSubnet(Network):
         # 384x384-->192x192
 # A1
         (self.feed('data')
-             .conv(9, 9, 64, 1, 1, biased=True, relu=False, name='C1_conv')
-             .conv(13, 13, 64, 1, 1, biased=True, relu=False, name='C2_conv')
-             .conv(13, 13, 64, 1, 1, biased=True, relu=False, name='C3_conv')
-             .conv(15, 15, 64, 1, 1, biased=True, relu=False, name='C4_conv')
-             .conv(1, 1, 64, 1, 1, biased=True, relu=False, name='C5_conv')
-             .conv(1, 1, 64, 1, 1, biased=True, relu=False, name='C6_conv')
-             .conv(1, 1, 64, 1, 1, biased=True, relu=False, name='C7_conv')
+             .conv(9, 9, 64, 1, 1, biased=True, relu=True, name='C1_conv')
+             .conv(13, 13, 64, 1, 1, biased=True, relu=True, name='C2_conv')
+             .conv(13, 13, 64, 1, 1, biased=True, relu=True, name='C3_conv')
+             .conv(15, 15, 64, 1, 1, biased=True, relu=True, name='C4_conv')
+             .conv(1, 1, 64, 1, 1, biased=True, relu=True, name='C5_conv')
+             .conv(1, 1, 64, 1, 1, biased=True, relu=True, name='C6_conv')
+             .conv(1, 1, 64, 1, 1, biased=True, relu=True, name='C7_conv')
              .deconv(380, 380, 8, 4, 16, name='C8_deconv'))
 
 
