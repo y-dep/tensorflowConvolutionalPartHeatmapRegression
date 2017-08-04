@@ -7,12 +7,16 @@ import random
 from utils import *
 from LIP_model import *
 import matplotlib.pyplot as plt
-
+import sys
+# np.set_printoptions(threshold=1e16)
 # Set gpus
-gpus = [1] # Here I set CUDA to only see one GPU
+gpus = [2] # Here I set CUDA to only see one GPU
 os.environ["CUDA_VISIBLE_DEVICES"]=','.join([str(i) for i in gpus])
 num_gpus = len(gpus) # number of GPUs to use
-
+#output=sys.stdout
+#outputfile=open("data.txt",'w')
+#sys.stdout=outputfile
+#np.set_printoptions(threshold=1e60)
 ### parameters setting
 N_CLASSES = 16
 INPUT_SIZE = (380, 380)
@@ -48,6 +52,8 @@ def main():
         reader = ParsingPoseReader(DATA_DIR, LIST_PATH, DATA_ID_LIST, INPUT_SIZE, RANDOM_SCALE, RANDOM_MIRROR, SHUFFLE, coord)
         image_batch, label_batch, heatmap_batch = reader.dequeue(BATCH_SIZE)
         heatmap_batch = tf.scalar_mul(1.0/255, tf.cast(heatmap_batch, tf.float32))
+        constant = tf.constant(0.51 - 65/255.0, shape= heatmap_batch.get_shape())
+        onehot_batch = tf.round(tf.add(heatmap_batch, constant))
         # heatmap = tf.reduce_sum(heatmap_batch, 3)
 
     tower_grads = []
@@ -67,13 +73,16 @@ def main():
                     reuse1 = True
                 next_image = image_batch[i*BATCH_I:(i+1)*BATCH_I,:]
                 next_heatmap = heatmap_batch[i*BATCH_I:(i+1)*BATCH_I,:]
+                next_onehot = onehot_batch[i*BATCH_I:(i+1)*BATCH_I,:]
 
                 ## Create network.
                 with tf.variable_scope('', reuse=reuse1):
                     detection_net = PartDetectionSubnet({'data': next_image}, is_training=False, n_classes=N_CLASSES)
                     detectionnet_out = detection_net.layers['A9_mid3_bilinear']
                 resized_heatmap = tf.image.resize_nearest_neighbor(next_heatmap, [95, 95])
-                loss_detection = tf.reduce_mean(tf.sqrt(tf.reduce_sum(tf.square(tf.subtract(resized_heatmap, detectionnet_out)), [1, 2, 3])))
+                resized_onehot = tf.image.resize_nearest_neighbor(next_onehot, [95, 95])
+                loss_detection = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits=detectionnet_out, labels= resized_onehot), name= 'cross_entropy_loss')
+
                 # resized_inpimage =tf.image.resize_nearest_neighbor(next_image, [95, 95])
                 # regression_input = tf.concat([detectionnet_out, resized_inpimage],3)
                 # with tf.variable_scope('', reuse=reuse1):
@@ -91,6 +100,7 @@ def main():
                 tower_grads.append(grads)
 
                 tf.add_to_collection('loss_detection', loss_detection)
+                # tf.add_to_collection('loss_detection', loss_detection)
                 #tf.add_to_collection('reduced_loss', reduced_loss)
 
     ## Average the gradients
@@ -135,7 +145,13 @@ def main():
 
         ## Apply gradients.
         summary, loss_value, _ = sess.run([loss_summary_detection, reduced_loss, train_op], feed_dict=feed_dict)
-        summary_writer.add_summary(summary, step)
+        # print('Step: %d , ----OneHot----',step)
+        # print(sess.run(resized_onehot))
+        # print('Step: %d , ----Heatmap----', step)
+        # print(sess.run(resized_heatmap))
+
+        if loss_value < 28:
+            summary_writer.add_summary(summary, step)
         if step % SAVE_PRED_EVERY == 0:
             save(saver, sess, SNAPSHOT_DIR, step)
 
@@ -156,6 +172,8 @@ def main():
     #     plt.imshow(fullmap[0,:,:,0])
 
     #     plt.show()
+    # outputfile.close()
+    # sys.stdout=output
 
     coord.request_stop()
     coord.join(threads)
